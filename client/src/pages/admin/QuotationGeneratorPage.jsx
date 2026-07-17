@@ -81,8 +81,8 @@ export default function QuotationGeneratorPage() {
   return (
     <div className="w-full h-full flex flex-col space-y-6 pb-6 min-h-0">
       
-      {/* HEADER SECTION - Frozen at the top */}
-      <div className="shrink-0 flex justify-between items-center bg-white p-6 rounded-xl border shadow-sm">
+      {/* HEADER SECTION - Responsive stacking on mobile */}
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-xl border shadow-sm">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
             <Calculator className="w-8 h-8 text-emerald-600" /> Quotation Generator
@@ -90,11 +90,11 @@ export default function QuotationGeneratorPage() {
           <p className="text-muted-foreground text-sm mt-1">Create, manage, and download professional PDF quotations.</p>
         </div>
         {view === "list" ? (
-          <Button onClick={handleCreateNew} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-sm shrink-0 px-6">
+          <Button onClick={handleCreateNew} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-sm w-full sm:w-auto px-6">
             <Plus className="w-5 h-5 mr-2" /> New Quotation
           </Button>
         ) : (
-          <Button onClick={() => setView("list")} variant="outline" className="font-bold h-11 border-slate-300 shrink-0 px-6">
+          <Button onClick={() => setView("list")} variant="outline" className="font-bold h-11 border-slate-300 w-full sm:w-auto px-6">
             Cancel
           </Button>
         )}
@@ -158,9 +158,9 @@ export default function QuotationGeneratorPage() {
         <div className="flex-1 overflow-auto bg-white rounded-xl border shadow-sm">
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8 flex flex-col">
             <div className="space-y-4 border-b pb-8">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                   <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Building className="w-5 h-5 text-indigo-600"/> Client Information</h3>
-                  <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-100 shadow-sm transition-all hover:bg-indigo-100 cursor-pointer" onClick={() => setFormData({...formData, isGstApplied: !formData.isGstApplied})}>
+                  <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-100 shadow-sm transition-all hover:bg-indigo-100 cursor-pointer w-full sm:w-auto" onClick={() => setFormData({...formData, isGstApplied: !formData.isGstApplied})}>
                       <Checkbox id="gst-toggle" checked={formData.isGstApplied !== false} onCheckedChange={(c) => setFormData({...formData, isGstApplied: c})} className="data-[state=checked]:bg-indigo-600 border-indigo-300 pointer-events-none" />
                       <Label htmlFor="gst-toggle" className="font-bold text-indigo-900 cursor-pointer pointer-events-none text-sm">Apply GST to this Quote</Label>
                   </div>
@@ -176,30 +176,32 @@ export default function QuotationGeneratorPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                   <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Users className="w-5 h-5 text-emerald-600"/> Manpower Schedule</h3>
-                  <Button type="button" onClick={addManpowerRow} variant="outline" size="sm" className="font-bold text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 shadow-sm shrink-0">
+                  <Button type="button" onClick={addManpowerRow} variant="outline" size="sm" className="font-bold text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 shadow-sm w-full sm:w-auto">
                       <Plus className="w-4 h-4 mr-1" /> Add Category
                   </Button>
               </div>
               
-              <div className="space-y-3 overflow-x-auto pb-2">
+              <div className="space-y-4 pb-2">
                 {formData.manpower.map((mp, index) => (
-                  <div key={index} className="flex flex-nowrap gap-3 items-end bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all hover:border-slate-300 w-max min-w-full">
-                    <div className="w-[200px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Category Name</Label><Input required value={mp.category} onChange={e => handleManpowerChange(index, "category", e.target.value)} placeholder="e.g. SECURITY GUARD" className="font-bold bg-white h-10" /></div>
-                    <div className="w-[120px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rate (Rs)</Label><Input type="number" required value={mp.rate} onChange={e => handleManpowerChange(index, "rate", Number(e.target.value))} className="font-mono font-black bg-white text-emerald-700 h-10" /></div>
-                    <div className="w-[90px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Persons</Label><Input type="number" required value={mp.persons} onChange={e => handleManpowerChange(index, "persons", Number(e.target.value))} className="font-mono bg-white font-bold h-10" /></div>
-                    <div className="w-[110px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Days</Label><Input required value={mp.dutyDays} onChange={e => handleManpowerChange(index, "dutyDays", e.target.value)} className="bg-white text-sm font-medium h-10" /></div>
-                    <div className="w-[110px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Hours</Label><Input required value={mp.dutyHours} onChange={e => handleManpowerChange(index, "dutyHours", e.target.value)} className="bg-white text-sm font-medium h-10" /></div>
+                  <div key={index} className="flex flex-wrap gap-3 items-end bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all hover:border-slate-300 w-full relative">
+                    <div className="w-full sm:flex-1 sm:min-w-[180px] space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Category Name</Label><Input required value={mp.category} onChange={e => handleManpowerChange(index, "category", e.target.value)} placeholder="e.g. SECURITY GUARD" className="font-bold bg-white h-10 w-full" /></div>
+                    <div className="w-[48%] sm:w-[120px] space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rate (Rs)</Label><Input type="number" required value={mp.rate} onChange={e => handleManpowerChange(index, "rate", Number(e.target.value))} className="font-mono font-black bg-white text-emerald-700 h-10 w-full" /></div>
+                    <div className="w-[48%] sm:w-[90px] space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Persons</Label><Input type="number" required value={mp.persons} onChange={e => handleManpowerChange(index, "persons", Number(e.target.value))} className="font-mono bg-white font-bold h-10 w-full" /></div>
+                    <div className="w-[48%] sm:w-[110px] space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Days</Label><Input required value={mp.dutyDays} onChange={e => handleManpowerChange(index, "dutyDays", e.target.value)} className="bg-white text-sm font-medium h-10 w-full" /></div>
+                    <div className="w-[48%] sm:w-[110px] space-y-1.5"><Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Hours</Label><Input required value={mp.dutyHours} onChange={e => handleManpowerChange(index, "dutyHours", e.target.value)} className="bg-white text-sm font-medium h-10 w-full" /></div>
                     
                     {formData.isGstApplied !== false && (
-                       <div className="w-[90px] shrink-0 space-y-1.5"><Label className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">GST %</Label><Input type="number" required value={mp.gstPercent} onChange={e => handleManpowerChange(index, "gstPercent", Number(e.target.value))} className="bg-white text-sm font-bold text-indigo-700 h-10" /></div>
+                       <div className="w-[48%] sm:w-[90px] space-y-1.5"><Label className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">GST %</Label><Input type="number" required value={mp.gstPercent} onChange={e => handleManpowerChange(index, "gstPercent", Number(e.target.value))} className="bg-white text-sm font-bold text-indigo-700 h-10 w-full" /></div>
                     )}
                     
                     {formData.manpower.length > 1 && (
-                      <Button type="button" onClick={() => removeManpowerRow(index)} variant="outline" size="icon" className="h-10 w-10 shrink-0 text-red-500 border-red-200 bg-red-50 hover:bg-red-100">
-                          <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="w-full sm:w-auto flex justify-end mt-2 sm:mt-0">
+                        <Button type="button" onClick={() => removeManpowerRow(index)} variant="outline" size="icon" className="h-10 w-10 shrink-0 text-red-500 border-red-200 bg-red-50 hover:bg-red-100">
+                            <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -207,7 +209,7 @@ export default function QuotationGeneratorPage() {
             </div>
 
             <div className="pt-6 border-t flex justify-end shrink-0">
-              <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 px-8 text-lg shadow-md transition-all active:scale-95">
+              <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full sm:w-auto px-8 text-lg shadow-md transition-all active:scale-95">
                   {loading ? "Saving..." : <><Save className="w-5 h-5 mr-2" /> Save & Return</>}
               </Button>
             </div>
