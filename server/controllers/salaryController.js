@@ -77,9 +77,15 @@ function calculateSalaryMath(guard, splitStats, year, month, editableData, carri
   const extraDuty = safeO('extraDuty', Math.max(0, totalPayableDays - daysInMonth));
 
   const minWages = safeO('minWages', Number(guard.salary) || 0);
-  const actualPerDayAmount = safeO('perDayAmount', Math.round(minWages / daysInMonth));
   
-  const grossWages = safeO('grossWages', Math.round(actualPerDayAmount * totalDuty));
+  // FIX: Calculate precise daily rate without rounding it early
+  const preciseDailyRate = minWages / daysInMonth;
+
+  // FIX: If full month attendance, force exact minWages to prevent penny errors
+  const baseGross = (totalDuty === daysInMonth) ? minWages : Math.round(preciseDailyRate * totalDuty);
+  const grossWages = safeO('grossWages', baseGross);
+  
+  const actualPerDayAmount = safeO('perDayAmount', Math.round(preciseDailyRate));
   const extraDutyPay = safeO('extraDutyPay', Math.round(actualPerDayAmount * extraDuty));
 
   const basicPay = safeO('basicPay', Math.round(grossWages * 0.50));
