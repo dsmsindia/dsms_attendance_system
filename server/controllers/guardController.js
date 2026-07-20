@@ -10,7 +10,7 @@ async function listGuards(req, res) {
   try {
     const guards = await Guard.find()
       .populate("projectId", "name active")
-      // Sort: Active first (true=1, false=0 -> descending), then alphabetically by name
+      .populate("projectHistory.projectId", "name")
       .sort({ active: -1, name: 1 });
     res.json(guards);
   } catch (error) {
@@ -45,7 +45,6 @@ async function createGuard(req, res) {
       return res.status(400).json({ message: "Name and contact are required" });
     }
 
-    // FIXED: Safely handle empty strings to prevent MongoDB CastError (500 crash)
     const finalProjectId = projectId && projectId !== "" ? projectId : null;
 
     if (!isReliever && !finalProjectId) {
@@ -63,7 +62,6 @@ async function createGuard(req, res) {
         .json({ message: "Guard with this contact number already exists" });
     }
 
-    // FIXED: Catch leftover User accounts to prevent duplicate key crashes
     const existingUser = await User.findOne({ username: cleanContact });
     if (existingUser) {
       return res
@@ -72,6 +70,8 @@ async function createGuard(req, res) {
           message: "A login account for this mobile number already exists.",
         });
     }
+
+    const effStartDate = doj || todayStr();
 
     const guard = await Guard.create({
       name: name.toUpperCase(),
@@ -93,6 +93,15 @@ async function createGuard(req, res) {
       ifscCode: ifscCode?.toUpperCase(),
       branchName: branchName?.toUpperCase(),
       username: cleanContact,
+      // Initialize first project history stint with the starting salary
+      projectHistory: [
+        {
+          projectId: finalProjectId,
+          startDate: effStartDate,
+          endDate: null,
+          salary: salary || 0,
+        },
+      ],
     });
 
     const passwordHash = await bcrypt.hash(cleanContact, 10);
@@ -103,13 +112,12 @@ async function createGuard(req, res) {
       guardId: guard._id,
     });
 
-    const populatedGuard = await Guard.findById(guard._id).populate(
-      "projectId",
-      "name active",
-    );
+    const populatedGuard = await Guard.findById(guard._id)
+      .populate("projectId", "name active")
+      .populate("projectHistory.projectId", "name");
+
     res.status(201).json(populatedGuard);
   } catch (error) {
-    console.error("GUARD CREATE ERROR:", error);
     res
       .status(500)
       .json({ message: error.message || "Failed to create guard" });
@@ -144,12 +152,15 @@ async function updateGuardDetails(req, res) {
     const guard = await Guard.findById(guardId);
     if (!guard) return res.status(404).json({ message: "Guard not found" });
 
+    // CAPTURE THE OLD SALARY BEFORE UPDATING IT
+    const oldSalary = guard.salary || 0;
+
     guard.name = name?.toUpperCase();
     guard.fathersName = fathersName?.toUpperCase() || "";
     guard.address = address?.toUpperCase() || "";
     guard.contact = contact;
     guard.department = department?.toUpperCase() || "SECURITY GUARD";
-    guard.salary = salary || 0;
+    guard.salary = salary || 0; // Updated to new salary
     guard.pfNumber = pfNumber?.toUpperCase() || "";
     guard.esicNumber = esicNumber?.toUpperCase() || "";
 
@@ -166,8 +177,6 @@ async function updateGuardDetails(req, res) {
     let assignmentChanged = false;
 
     const isNowReliever = isReliever === true;
-
-    // FIXED: Safe parsing of projectId
     const safeProjectId = projectId && projectId !== "" ? projectId : null;
     const finalProjectId = isNowReliever ? null : safeProjectId;
 
@@ -186,6 +195,7 @@ async function updateGuardDetails(req, res) {
 
         if (currentStr !== newStr) {
           openStint.endDate = effDate;
+          openStint.salary = oldSalary; // SNAPSHOT: Lock in the old salary for the past project
           assignmentChanged = true;
         }
       } else {
@@ -200,6 +210,7 @@ async function updateGuardDetails(req, res) {
         projectId: finalProjectId,
         startDate: effDate,
         endDate: null,
+        salary: guard.salary, // Apply the new salary to the new stint
       });
     }
 
@@ -207,10 +218,13 @@ async function updateGuardDetails(req, res) {
     guard.projectId = finalProjectId;
 
     await guard.save();
-    const populated = await guard.populate("projectId", "name");
+
+    const populated = await Guard.findById(guard._id)
+      .populate("projectId", "name")
+      .populate("projectHistory.projectId", "name");
+
     res.json(populated);
   } catch (error) {
-    console.error("UPDATE GUARD ERROR:", error);
     res
       .status(500)
       .json({
@@ -225,8 +239,9 @@ async function deactivate(req, res) {
       req.params.id,
       { active: false },
       { returnDocument: "after" },
-    ).populate("projectId", "name");
-    if (!guard) return res.status(404).json({ message: "Guard not found" });
+    )
+      .populate("projectId", "name")
+      .populate("projectHistory.projectId", "name");
     res.json(guard);
   } catch (error) {
     res.status(500).json({ message: "Failed to deactivate guard" });
@@ -239,8 +254,9 @@ async function reactivate(req, res) {
       req.params.id,
       { active: true },
       { returnDocument: "after" },
-    ).populate("projectId", "name");
-    if (!guard) return res.status(404).json({ message: "Guard not found" });
+    )
+      .populate("projectId", "name")
+      .populate("projectHistory.projectId", "name");
     res.json(guard);
   } catch (error) {
     res.status(500).json({ message: "Failed to reactivate guard" });

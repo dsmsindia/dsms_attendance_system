@@ -43,6 +43,29 @@ const getDayStyle = (status) => {
   return "bg-slate-100 text-slate-700 font-medium";
 };
 
+function computeFallbackStatus(
+  projectObj,
+  dateStr,
+  explicitStatus,
+  todayStr,
+  isReliever,
+) {
+  if (projectObj && projectObj.holidays && Array.isArray(projectObj.holidays)) {
+    const holiday = projectObj.holidays.find((h) => h.date === dateStr);
+    if (holiday) {
+      if (holiday.worksOnHoliday) return dateStr <= todayStr ? "A" : null;
+      return "H";
+    }
+  }
+  if (explicitStatus) return explicitStatus;
+  if (!projectObj) return !isReliever && dateStr <= todayStr ? "A" : null;
+
+  const dow = new Date(dateStr + "T00:00:00").getDay();
+  if (projectObj.weeklyOff === dow) return "OFF";
+
+  return !isReliever && dateStr <= todayStr ? "A" : null;
+}
+
 export default function ReportPage() {
   const now = new Date();
 
@@ -95,6 +118,12 @@ export default function ReportPage() {
     setLoading(true);
     setRows([]);
     try {
+      let currentProjects = projects;
+      if (!currentProjects || currentProjects.length === 0) {
+        currentProjects = await getProjects();
+        setProjects(currentProjects);
+      }
+
       const scoped = await getReportGuards(startDate, endDate, projectId);
       if (!Array.isArray(scoped))
         throw new Error("Invalid guards data received.");
@@ -139,27 +168,33 @@ export default function ReportPage() {
             pNames.push(contextProjectName);
           }
         } else if (projectId === "all") {
-          if (pNames.length === 0) {
-            pNames.push(assignedProjName);
-          }
+          if (pNames.length === 0) pNames.push(assignedProjName);
         } else if (projectId === "relievers") {
-          if (guard.isReliever && pNames.length === 0) {
-            pNames.push("Reliever");
-          }
+          if (guard.isReliever && pNames.length === 0) pNames.push("Reliever");
         }
 
         if (pNames.length === 0) {
+          const projectObj = currentProjects.find(
+            (p) => p.name === assignedProjName,
+          );
+
           const splitDays = dateRange.map((dateStr) => {
             const d = safeDays.find((x) => x.date === dateStr);
-            if (d) return d;
-            const isPast = dateStr <= todayStr;
+            const finalStatus = computeFallbackStatus(
+              projectObj,
+              dateStr,
+              d ? d.status : null,
+              todayStr,
+              guard?.isReliever,
+            );
+
             return {
               date: dateStr,
-              status: !guard?.isReliever && isPast ? "A" : null,
+              status: finalStatus,
               projectName: null,
               projectType: null,
-              time: null,
-              markedByAdmin: false,
+              time: d ? d.time : null,
+              markedByAdmin: d ? d.markedByAdmin : false,
             };
           });
 
@@ -195,6 +230,12 @@ export default function ReportPage() {
           const payableWeekOff = Math.max(0, earnedWeekOff - off);
           const totalDays = pureDays + payableWeekOff;
 
+          // FIX: Explicitly enforce blank tags for relievers
+          const assignedProjType = guard?.isReliever
+            ? ""
+            : currentProjects.find((p) => p.name === assignedProjName)?.type ||
+              "WEEKLY OFF";
+
           flatRows.push({
             guard,
             days: splitDays,
@@ -204,31 +245,40 @@ export default function ReportPage() {
               totalWorkingDays: Number(totalDays.toFixed(2)),
             },
             currentProjectName: assignedProjName,
-            projectType: guard?.isReliever ? "" : "WEEKLY OFF",
+            projectType: assignedProjType,
           });
         } else {
           for (const pName of pNames) {
             if (contextProjectName && contextProjectName !== pName) continue;
+            const projectObj = currentProjects.find((p) => p.name === pName);
 
             const splitDays = dateRange.map((dateStr) => {
               const d = safeDays.find(
                 (x) => x.date === dateStr && x.projectName === pName,
               );
-              if (d) return d;
-              const isPast = dateStr <= todayStr;
+              const finalStatus = computeFallbackStatus(
+                projectObj,
+                dateStr,
+                d ? d.status : null,
+                todayStr,
+                guard?.isReliever,
+              );
+
               return {
                 date: dateStr,
-                status: !guard?.isReliever && isPast ? "A" : null,
+                status: finalStatus,
                 projectName: pName,
                 projectType: null,
-                time: null,
-                markedByAdmin: false,
+                time: d ? d.time : null,
+                markedByAdmin: d ? d.markedByAdmin : false,
               };
             });
 
+            // FIX: Explicitly enforce blank tags for relievers
             const pType =
               safeDays.find((d) => d.projectName === pName)?.projectType ||
-              "WEEKLY OFF";
+              currentProjects.find((p) => p.name === pName)?.type ||
+              (guard?.isReliever ? "" : "WEEKLY OFF");
 
             const localStats = {
               P: 0,
@@ -436,7 +486,6 @@ export default function ReportPage() {
             </p>
           </div>
         ) : (
-          /* FIX: Removed 'hidden md:block' to allow mobile scrolling */
           <div className="flex-1 overflow-auto relative w-full">
             <table className="w-full text-sm min-w-max border-collapse">
               <TableHeader className="sticky top-0 z-30 bg-slate-50 shadow-sm">
@@ -516,12 +565,15 @@ export default function ReportPage() {
                           <div className="text-xs font-bold text-slate-800 truncate max-w-[160px]">
                             {displayProjectName}
                           </div>
+                          {/* FIX: Explicit check to prevent any tags rendering for relievers */}
                           <div className="text-[10px] text-slate-400 font-medium uppercase mt-0.5 tracking-tight">
-                            {projectType === "ALL DAY"
-                              ? "All Day Project"
-                              : projectType === "WEEKLY OFF"
-                                ? "Weekly Off Project"
-                                : ""}
+                            {guard?.isReliever
+                              ? ""
+                              : projectType === "ALL DAY"
+                                ? "All Day Project"
+                                : projectType === "WEEKLY OFF"
+                                  ? "Weekly Off Project"
+                                  : ""}
                           </div>
                         </TableCell>
 

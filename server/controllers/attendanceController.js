@@ -50,7 +50,6 @@ async function markAttendance(req, res) {
         chosen && chosen.projectId ? chosen.projectId : guard.projectId;
     }
 
-    // NEW: HOLIDAY LOCK CHECK FOR GUARDS
     if (req.user.role !== "admin") {
       const existingRecord = await Attendance.findOne({
         guardId,
@@ -151,7 +150,7 @@ async function getMonthAttendance(req, res) {
         date: a.date,
         status: a.status,
         projectName: projectsById[a.projectId]?.name || "Unassigned",
-        projectType: projectsById[a.projectId]?.projectType,
+        projectType: projectsById[a.projectId]?.type, // FIX: Properly mapped to `.type`
         time: a.time,
         markedByAdmin: a.markedByAdmin,
       }));
@@ -214,7 +213,6 @@ async function adminUpdateAttendance(req, res) {
       hour12: true,
     });
 
-    // NEW: Automatically lock this cell so the guard cannot overwrite it, if Admin marks Holiday
     const isLocked = status === "H";
 
     const updatedRecord = await Attendance.findOneAndUpdate(

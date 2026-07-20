@@ -26,21 +26,21 @@ function findProjectForDate(guard, dateStr, projectsById, attendanceDoc) {
 }
 
 function computeDayStatus(project, dateStr, explicitStatus, todayStr) {
-  if (explicitStatus) return explicitStatus;
-  if (!project) return null;
-
-  if (project.holidays && Array.isArray(project.holidays)) {
+  if (project && project.holidays && Array.isArray(project.holidays)) {
     const holiday = project.holidays.find((h) => h.date === dateStr);
     if (holiday) {
-      if (holiday.worksOnHoliday) return dateStr < todayStr ? "A" : null;
+      if (holiday.worksOnHoliday) return dateStr <= todayStr ? "A" : null;
       return "H";
     }
   }
 
+  if (explicitStatus) return explicitStatus;
+  if (!project) return null;
+
   const dow = new Date(dateStr + "T00:00:00").getDay();
   if (project.weeklyOff === dow) return "OFF";
 
-  return dateStr < todayStr ? "A" : null;
+  return dateStr <= todayStr ? "A" : null;
 }
 
 function buildMonthReport(guard, projectsById, year, month, attendanceDocs) {
@@ -64,12 +64,24 @@ function buildMonthReport(guard, projectsById, year, month, attendanceDocs) {
       docsForDay.forEach((doc) => {
         const pIdStr = doc.projectId ? doc.projectId.toString() : null;
         const project = pIdStr ? projectsById[pIdStr] : null;
+
+        const finalStatus = computeDayStatus(
+          project,
+          dateStr,
+          doc.status,
+          todayStr,
+        );
+
         days.push({
           date: dateStr,
-          status: doc.status,
+          status: finalStatus,
           projectName: project ? project.name : null,
           projectId: pIdStr,
-          projectType: project ? project.type : "WEEKLY OFF",
+          projectType: project
+            ? project.type
+            : guard.isReliever
+              ? ""
+              : "WEEKLY OFF", // FIX: Keep blank for relievers
           time: doc.time || null,
           markedByAdmin: doc.markedByAdmin || false,
         });
@@ -82,7 +94,11 @@ function buildMonthReport(guard, projectsById, year, month, attendanceDocs) {
         status,
         projectName: project ? project.name : null,
         projectId: project ? project._id?.toString() : null,
-        projectType: project ? project.type : "WEEKLY OFF",
+        projectType: project
+          ? project.type
+          : guard.isReliever
+            ? ""
+            : "WEEKLY OFF", // FIX: Keep blank for relievers
         time: null,
         markedByAdmin: false,
       });
@@ -137,6 +153,13 @@ function splitReportByProject(fullReport, year, month) {
   const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
 
   if (pNames.length === 0) {
+    const defaultDay = days.find((d) => d.projectType);
+    const defaultProjectType = defaultDay
+      ? defaultDay.projectType
+      : guard.isReliever
+        ? ""
+        : "WEEKLY OFF"; // FIX: Keep blank for relievers
+
     const splitDays = [];
     for (let d = 1; d <= daysInMonth; d++) {
       let dateStr = "";
@@ -155,7 +178,7 @@ function splitReportByProject(fullReport, year, month) {
           date: dateStr,
           status: !guard?.isReliever && isPast ? "A" : null,
           projectName: null,
-          projectType: null,
+          projectType: defaultProjectType,
           time: null,
           markedByAdmin: false,
         });
@@ -207,7 +230,7 @@ function splitReportByProject(fullReport, year, month) {
         days: splitDays,
         stats,
         projectName: guard?.isReliever ? "Reliever" : null,
-        projectType: guard?.isReliever ? "" : "WEEKLY OFF",
+        projectType: guard?.isReliever ? "" : defaultProjectType, // FIX: Keep blank for relievers
       },
     ];
   }
@@ -215,6 +238,13 @@ function splitReportByProject(fullReport, year, month) {
   const splits = [];
   for (const pName of pNames) {
     const splitDays = [];
+
+    const projDay = days.find((d) => d.projectName === pName && d.projectType);
+    const pType = projDay
+      ? projDay.projectType
+      : guard.isReliever
+        ? ""
+        : "WEEKLY OFF"; // FIX: Keep blank for relievers
 
     for (let d = 1; d <= daysInMonth; d++) {
       let dateStr = "";
@@ -236,16 +266,13 @@ function splitReportByProject(fullReport, year, month) {
           date: dateStr,
           status: !guard?.isReliever && isPast ? "A" : null,
           projectName: pName,
-          projectType: null,
+          projectType: pType,
           time: null,
           markedByAdmin: false,
         });
       }
     }
 
-    const pType =
-      splitDays.find((d) => d.projectName === pName)?.projectType ||
-      "WEEKLY OFF";
     const stats = {
       P: 0,
       A: 0,

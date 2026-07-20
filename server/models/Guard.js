@@ -9,6 +9,7 @@ const projectStintSchema = new mongoose.Schema(
     },
     startDate: { type: String, required: true },
     endDate: { type: String, default: null },
+    salary: { type: Number, default: 0 }, // NEW: Stores historical salary
   },
   { _id: false },
 );
@@ -47,7 +48,6 @@ const guardSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// FIXED: Removed 'next' callback. Modern setups handle this synchronously.
 guardSchema.pre("save", function () {
   if (
     this.adhar &&
