@@ -152,15 +152,17 @@ async function updateGuardDetails(req, res) {
     const guard = await Guard.findById(guardId);
     if (!guard) return res.status(404).json({ message: "Guard not found" });
 
-    // CAPTURE THE OLD SALARY BEFORE UPDATING IT
+    // CAPTURE THE OLD STATE BEFORE UPDATING IT
     const oldSalary = guard.salary || 0;
+    const oldProjectId = guard.projectId;
+    const oldIsReliever = guard.isReliever;
 
     guard.name = name?.toUpperCase();
     guard.fathersName = fathersName?.toUpperCase() || "";
     guard.address = address?.toUpperCase() || "";
     guard.contact = contact;
     guard.department = department?.toUpperCase() || "SECURITY GUARD";
-    guard.salary = salary || 0; // Updated to new salary
+    guard.salary = salary || 0; 
     guard.pfNumber = pfNumber?.toUpperCase() || "";
     guard.esicNumber = esicNumber?.toUpperCase() || "";
 
@@ -203,6 +205,13 @@ async function updateGuardDetails(req, res) {
       }
     } else {
       assignmentChanged = true;
+      // FIX FOR OLD GUARDS: Push their past active assignment into history before logging the new one
+      guard.projectHistory.push({
+        projectId: oldIsReliever ? null : oldProjectId,
+        startDate: guard.doj || "2000-01-01",
+        endDate: effDate,
+        salary: oldSalary,
+      });
     }
 
     if (assignmentChanged) {
