@@ -12,8 +12,6 @@ import {
   Building2,
   FileText,
   ShieldAlert,
-  Pencil,
-  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +47,6 @@ export default function SalarySheetPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [excelDownloading, setExcelDownloading] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     getProjects()
@@ -300,6 +297,7 @@ export default function SalarySheetPage() {
 
   const fmt = (val, decimals = 0) => (Number(val) || 0).toFixed(decimals);
 
+  // Simply renders the locked, calculated output
   const EditCell = ({
     val,
     field,
@@ -308,18 +306,6 @@ export default function SalarySheetPage() {
     isDec = false,
     minWidth = "w-12",
   }) => {
-    if (isEditing) {
-      return (
-        <input
-          type="number"
-          value={m.overrides?.[field] ?? m[field] ?? ""}
-          onChange={(e) => handleEditChange(index, field, e.target.value)}
-          onBlur={() => handleBlurSave(index)}
-          className={`${minWidth} h-6 text-center text-[10px] font-bold border border-indigo-300 rounded outline-none focus:border-indigo-600 bg-indigo-50`}
-          placeholder="-"
-        />
-      );
-    }
     return <span>{fmt(val, isDec ? 2 : 0)}</span>;
   };
 
@@ -402,22 +388,6 @@ export default function SalarySheetPage() {
               ))}
             </SelectContent>
           </Select>
-
-          <Button
-            onClick={() => setIsEditing(!isEditing)}
-            variant="outline"
-            className={`font-bold border-slate-300 shadow-sm ${isEditing ? "bg-amber-100 text-amber-900 border-amber-300" : "hover:bg-slate-50"}`}
-          >
-            {isEditing ? (
-              <>
-                <Check className="w-4 h-4 mr-2" /> Done
-              </>
-            ) : (
-              <>
-                <Pencil className="w-4 h-4 mr-2" /> Edit All
-              </>
-            )}
-          </Button>
 
           <Button
             onClick={handleExcelDownload}
