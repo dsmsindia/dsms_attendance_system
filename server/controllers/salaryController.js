@@ -67,12 +67,19 @@ async function getRelevantGuards(year, month, projectIdFilter) {
         if (!projectIdFilter || projectIdFilter === "all") {
           include = true;
         } else {
-          const assignedToThis = history.some(
-            (h) =>
-              h.projectId?.toString() === projectIdFilter &&
+          // FIX: Safely extract the ID string whether it is populated or raw
+          const assignedToThis = history.some((h) => {
+            const hIdStr = h.projectId?._id
+              ? h.projectId._id.toString()
+              : h.projectId?.toString();
+
+            return (
+              hIdStr === projectIdFilter &&
               h.startDate <= end &&
-              (h.endDate || "9999-12-31") >= start,
-          );
+              (h.endDate || "9999-12-31") >= start
+            );
+          });
+          
           const workedAtThis = await Attendance.exists({
             guardId: g._id,
             projectId: projectIdFilter,
