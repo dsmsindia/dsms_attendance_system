@@ -12,6 +12,9 @@ const {
 } = require("../utils/attendance");
 const { monthBounds } = require("../utils/projectMembership");
 
+// FIX: Regex to validate MongoDB ObjectIds to prevent 500 CastErrors
+const validObjectIdRegex = /^[0-9a-fA-F]{24}$/;
+
 async function getRelevantGuards(year, month, projectIdFilter) {
   const { start, end } = monthBounds(year, month);
 
@@ -24,7 +27,6 @@ async function getRelevantGuards(year, month, projectIdFilter) {
     "name",
   );
 
-  // FIX: Explicitly exclude ALL relievers from ever appearing in the Salary Sheet computations
   const allGuards = [...activeGuards, ...inactiveGuards].filter(
     (g) => !g.isReliever,
   );
@@ -301,7 +303,7 @@ async function getSalarySheet(req, res) {
           if (a.projectId) historyIds.push(a.projectId.toString());
         });
 
-        const uniqueIds = [...new Set(historyIds)];
+        const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
         const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
         projectsDocs.forEach((p) => {
           projectsById[p._id.toString()] = p;
@@ -375,7 +377,12 @@ async function getSalarySheet(req, res) {
       }
 
       for (const split of splits) {
-        if (projectId && projectId !== "all" && projectId !== "office") {
+        if (
+          projectId &&
+          projectId !== "all" &&
+          projectId !== "office" &&
+          validObjectIdRegex.test(projectId.toString())
+        ) {
           const contextProj = await Project.findById(projectId);
           if (contextProj && split.projectName !== contextProj.name) continue;
         }
@@ -391,7 +398,7 @@ async function getSalarySheet(req, res) {
           guardId: guard._id,
           year,
           month,
-          projectId: projectRefId,
+          projectId: projectRefId && validObjectIdRegex.test(projectRefId.toString()) ? projectRefId : null,
         });
 
         let carriedEdAmount = 0;
@@ -505,8 +512,9 @@ async function updateEditableFields(req, res) {
     overrides,
   } = req.body;
   try {
+    const validProjectId = projectId && validObjectIdRegex.test(projectId.toString()) ? projectId : null;
     const record = await SalaryRecord.findOneAndUpdate(
-      { guardId, year, month, projectId },
+      { guardId, year, month, projectId: validProjectId },
       {
         $set: {
           bonus,
@@ -527,7 +535,10 @@ async function updateEditableFields(req, res) {
 }
 
 async function downloadSlip(req, res) {
-  const { guardId, year, month } = req.query;
+  const guardId = req.query.guardId;
+  const year = parseInt(req.query.year, 10);
+  const month = parseInt(req.query.month, 10);
+
   try {
     const guard = await Guard.findById(guardId).populate("projectId", "name");
 
@@ -573,7 +584,7 @@ async function downloadSlip(req, res) {
         if (a.projectId) historyIds.push(a.projectId.toString());
       });
 
-      const uniqueIds = [...new Set(historyIds)];
+      const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
       const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
       projectsDocs.forEach((p) => {
         projectsById[p._id.toString()] = p;
@@ -582,14 +593,14 @@ async function downloadSlip(req, res) {
       const fullReport = buildMonthReport(
         guardForReport,
         projectsById,
-        parseInt(year),
-        parseInt(month),
+        year,
+        month,
         attendanceDocs,
       );
       splits = splitReportByProject(
         fullReport,
-        parseInt(year),
-        parseInt(month),
+        year,
+        month,
       );
 
       for (const split of splits) {
@@ -667,7 +678,7 @@ async function downloadSlip(req, res) {
         guardId,
         year,
         month,
-        projectId: projectRefIdStr,
+        projectId: projectRefIdStr && validObjectIdRegex.test(projectRefIdStr.toString()) ? projectRefIdStr : null,
       });
 
       let carriedEdAmount = 0;
@@ -721,8 +732,8 @@ async function downloadSlip(req, res) {
       const math = calculateSalaryMath(
         guard,
         split.stats,
-        parseInt(year),
-        parseInt(month),
+        year,
+        month,
         record,
         carriedEdAmount,
         carriedSkipPfEsic,
@@ -1036,7 +1047,10 @@ function getColLetter(col) {
 }
 
 async function downloadExcelSheet(req, res) {
-  const { year, month, projectId } = req.query;
+  const projectId = req.query.projectId;
+  const year = parseInt(req.query.year, 10);
+  const month = parseInt(req.query.month, 10);
+  
   const workbook = new ExcelJS.Workbook();
 
   const monthNameStr = new Date(year, month).toLocaleString("en-US", {
@@ -1327,7 +1341,7 @@ async function downloadExcelSheet(req, res) {
           if (a.projectId) historyIds.push(a.projectId.toString());
         });
 
-        const uniqueIds = [...new Set(historyIds)];
+        const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
         const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
         projectsDocs.forEach((p) => {
           projectsById[p._id.toString()] = p;
@@ -1406,10 +1420,10 @@ async function downloadExcelSheet(req, res) {
 
       for (const split of splits) {
         if (
-          guard.department !== "OFFICE" &&
           projectId &&
           projectId !== "all" &&
-          projectId !== "office"
+          projectId !== "office" &&
+          validObjectIdRegex.test(projectId.toString())
         ) {
           const contextProj = await Project.findById(projectId);
           if (contextProj && split.projectName !== contextProj.name) continue;
@@ -1426,7 +1440,7 @@ async function downloadExcelSheet(req, res) {
           guardId: guard._id,
           year,
           month,
-          projectId: projectRefId,
+          projectId: projectRefId && validObjectIdRegex.test(projectRefId.toString()) ? projectRefId : null,
         });
 
         let carriedEdAmount = 0;
@@ -1477,11 +1491,12 @@ async function downloadExcelSheet(req, res) {
           }
         }
 
-        const math = calculateSalaryMath(
+        // FIX: The calculation output is correctly saved as 'm' here so it can be pushed properly on the next line
+        const m = calculateSalaryMath(
           guard,
           split.stats,
-          parseInt(year),
-          parseInt(month),
+          year,
+          month,
           record,
           carriedEdAmount,
           carriedSkipPfEsic,

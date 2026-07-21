@@ -50,6 +50,7 @@ export const DEPARTMENTS = [
   "SECURITY GUARD",
   "HEAD GUARD",
   "SUPERVISOR",
+  "NANNY",
   "GUNMAN",
   "BOUNCER",
   "LADY GUARD",

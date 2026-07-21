@@ -30,7 +30,7 @@ export default function QuotationGeneratorPage() {
   const fiscalYear = `${currentYear.toString().slice(-2)}-${nextYear.toString().slice(-2)}`;
 
   const emptyForm = {
-    refNo: `DSMS/${fiscalYear}/001`,
+    refNo: `DSMS/${fiscalYear}/004`, // Default start
     date: new Date()
       .toLocaleDateString("en-IN", {
         day: "2-digit",
@@ -117,14 +117,30 @@ export default function QuotationGeneratorPage() {
     setView("form");
   };
 
+  // FIX: Auto-calculates the next Quotation Number starting from 004
   const handleCreateNew = () => {
-    setFormData(emptyForm);
+    let nextNum = 4; // Start from 004 minimum
+    if (quotations.length > 0) {
+      const maxRef = Math.max(
+        ...quotations.map((q) => {
+          const match = q.refNo.match(/(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        })
+      );
+      if (maxRef >= 4) {
+        nextNum = maxRef + 1;
+      }
+    }
+    const paddedNum = String(nextNum).padStart(3, "0");
+    const newRefNo = `DSMS/${fiscalYear}/${paddedNum}`;
+
+    setFormData({ ...emptyForm, refNo: newRefNo });
     setView("form");
   };
 
   return (
     <div className="w-full h-full flex flex-col space-y-6 pb-6 min-h-0">
-      {/* HEADER SECTION - Responsive stacking on mobile */}
+      {/* HEADER SECTION */}
       <div className="shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-xl border shadow-sm">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
