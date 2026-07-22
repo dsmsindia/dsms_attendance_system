@@ -18,13 +18,14 @@ const validObjectIdRegex = /^[0-9a-fA-F]{24}$/;
 async function getRelevantGuards(year, month, projectIdFilter) {
   const { start, end } = monthBounds(year, month);
 
+  // ADDED: Populating "type" and "projectType" to safely catch the project type
   const activeGuards = await Guard.find({ active: true }).populate(
     "projectId",
-    "name",
+    "name type projectType",
   );
   const inactiveGuards = await Guard.find({ active: false }).populate(
     "projectId",
-    "name",
+    "name type projectType",
   );
 
   const allGuards = [...activeGuards, ...inactiveGuards].filter(
@@ -402,6 +403,24 @@ async function getSalarySheet(req, res) {
                 (p) => p.name === split.projectName,
               )?._id || null;
 
+        // ADDED: Extracting Project Type for the API Response
+        let projectType = "";
+        if (projectRefId) {
+          const pDoc = projectsById[projectRefId.toString()];
+          if (pDoc) {
+            projectType = pDoc.type || pDoc.projectType || "";
+          } else if (
+            guard.projectId &&
+            guard.projectId._id?.toString() === projectRefId.toString()
+          ) {
+            projectType =
+              guard.projectId.type || guard.projectId.projectType || "";
+          }
+        } else if (guard.projectId) {
+          projectType =
+            guard.projectId.type || guard.projectId.projectType || "";
+        }
+
         const record = await SalaryRecord.findOne({
           guardId: guard._id,
           year,
@@ -417,7 +436,6 @@ async function getSalarySheet(req, res) {
         let carriedOverrides = {};
 
         if (!record) {
-          // CHRONOLOGICAL FIX: Only look for records strictly IN THE PAST relative to the selected year & month
           const pastRecord = await SalaryRecord.findOne({
             guardId: guard._id,
             $or: [
@@ -484,6 +502,7 @@ async function getSalarySheet(req, res) {
           projectId: projectRefId,
           projectName:
             split.projectName || guard.projectId?.name || "Unassigned",
+          projectType,
           attendanceStats: split.stats,
           math,
           isPaid: record?.isPaid || false,
@@ -560,7 +579,11 @@ async function downloadSlip(req, res) {
   const month = parseInt(req.query.month, 10);
 
   try {
-    const guard = await Guard.findById(guardId).populate("projectId", "name");
+    // ADDED: Populate "type" and "projectType" for the PDF slip
+    const guard = await Guard.findById(guardId).populate(
+      "projectId",
+      "name type projectType",
+    );
 
     let projectsById = {};
 
@@ -692,6 +715,21 @@ async function downloadSlip(req, res) {
         .find((p) => p.name === split.projectName)
         ?._id?.toString();
 
+      // ADDED: Appending Project Type to the PDF output
+      let projectType = "";
+      if (projectRefIdStr) {
+        const pDoc = projectsById[projectRefIdStr];
+        if (pDoc) {
+          projectType = pDoc.type || pDoc.projectType || "";
+        } else if (
+          guard.projectId &&
+          guard.projectId._id?.toString() === projectRefIdStr
+        ) {
+          projectType =
+            guard.projectId.type || guard.projectId.projectType || "";
+        }
+      }
+
       const record = await SalaryRecord.findOne({
         guardId,
         year,
@@ -707,12 +745,13 @@ async function downloadSlip(req, res) {
       let carriedOverrides = {};
 
       if (!record) {
-        // CHRONOLOGICAL FIX: Only look for records strictly IN THE PAST
         const pastRecord = await SalaryRecord.findOne({
           guardId,
           $or: [{ year: { $lt: year } }, { year: year, month: { $lt: month } }],
-        }).sort({ year: -1, month: -1 });
-
+        }).sort({
+          year: -1,
+          month: -1,
+        });
         if (pastRecord) {
           carriedEdAmount = pastRecord.edAmount || 0;
           carriedSkipPfEsic = pastRecord.skipPfEsic || false;
@@ -779,8 +818,14 @@ async function downloadSlip(req, res) {
       totalAdvance += math.advance;
       totalOthers += math.othersDeduction;
 
-      if (split.projectName && !projectNames.includes(split.projectName)) {
-        projectNames.push(split.projectName);
+      const basePName =
+        split.projectName || guard.projectId?.name || "Unassigned";
+      const combinedPName = projectType
+        ? `${basePName} (${projectType})`
+        : basePName;
+
+      if (combinedPName && !projectNames.includes(combinedPName)) {
+        projectNames.push(combinedPName);
       }
     }
 
@@ -1461,6 +1506,21 @@ async function downloadExcelSheet(req, res) {
                 (p) => p.name === split.projectName,
               )?._id || null;
 
+        // ADDED: Pass Project Type to Excel Generator
+        let projectType = "";
+        if (projectRefId) {
+          const pDoc = projectsById[projectRefId.toString()];
+          if (pDoc) {
+            projectType = pDoc.type || pDoc.projectType || "";
+          } else if (
+            guard.projectId &&
+            guard.projectId._id?.toString() === projectRefId.toString()
+          ) {
+            projectType =
+              guard.projectId.type || guard.projectId.projectType || "";
+          }
+        }
+
         const record = await SalaryRecord.findOne({
           guardId: guard._id,
           year,
@@ -1476,7 +1536,6 @@ async function downloadExcelSheet(req, res) {
         let carriedOverrides = {};
 
         if (!record) {
-          // CHRONOLOGICAL FIX: Only carry forward from records that happened in the PAST
           const pastRecord = await SalaryRecord.findOne({
             guardId: guard._id,
             $or: [
@@ -1537,7 +1596,7 @@ async function downloadExcelSheet(req, res) {
           carriedOverrides,
           splitSalary,
         );
-        allRowsToExport.push({ guard, split, m });
+        allRowsToExport.push({ guard, split, m, projectType });
       }
     }
 
@@ -1555,10 +1614,16 @@ async function downloadExcelSheet(req, res) {
     });
 
     for (const rowData of allRowsToExport) {
-      const { guard, split, m } = rowData;
+      const { guard, split, m, projectType } = rowData;
 
-      const finalProjectName =
+      const baseProjectName =
         split.projectName || guard.projectId?.name || "Unassigned";
+
+      // ADDED: Appending Project Type to the Excel "Project Name" Column
+      const finalProjectName = projectType
+        ? `${baseProjectName}\n(${projectType})`
+        : baseProjectName;
+
       const textF = (val) =>
         val && val !== "-"
           ? {

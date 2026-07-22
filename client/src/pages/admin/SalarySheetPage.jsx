@@ -297,7 +297,6 @@ export default function SalarySheetPage() {
 
   const fmt = (val, decimals = 0) => (Number(val) || 0).toFixed(decimals);
 
-  // Simply renders the locked, calculated output
   const EditCell = ({
     val,
     field,
@@ -570,8 +569,22 @@ export default function SalarySheetPage() {
                       <td className="md:sticky md:left-[220px] z-[50] bg-white group-hover:bg-slate-50 border-r border-b p-2 text-xs font-medium text-slate-600 truncate md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                         {g.department}
                       </td>
-                      <td className="md:sticky md:left-[350px] z-[50] bg-white group-hover:bg-slate-50 border-r-2 border-slate-300 border-b p-2 text-[10px] font-bold text-slate-800 truncate md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                        {row.projectName}
+
+                      {/* ADDED: Display Project Type below Project Name */}
+                      <td className="md:sticky md:left-[350px] z-[50] bg-white group-hover:bg-slate-50 border-r-2 border-slate-300 border-b p-2 truncate md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                        <div className="flex flex-col min-w-0">
+                          <span
+                            className="text-[10px] font-bold text-slate-800 truncate block"
+                            title={row.projectName}
+                          >
+                            {row.projectName}
+                          </span>
+                          {row.projectType && (
+                            <span className="text-[9px] font-semibold text-slate-500 truncate block">
+                              {row.projectType}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <Td className="text-[10px] group-hover:bg-slate-50">
