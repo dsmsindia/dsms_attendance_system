@@ -67,7 +67,6 @@ async function getRelevantGuards(year, month, projectIdFilter) {
         if (!projectIdFilter || projectIdFilter === "all") {
           include = true;
         } else {
-          // FIX: Safely extract the ID string whether it is populated or raw
           const assignedToThis = history.some((h) => {
             const hIdStr = h.projectId?._id
               ? h.projectId._id.toString()
@@ -79,7 +78,7 @@ async function getRelevantGuards(year, month, projectIdFilter) {
               (h.endDate || "9999-12-31") >= start
             );
           });
-          
+
           const workedAtThis = await Attendance.exists({
             guardId: g._id,
             projectId: projectIdFilter,
@@ -310,7 +309,9 @@ async function getSalarySheet(req, res) {
           if (a.projectId) historyIds.push(a.projectId.toString());
         });
 
-        const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
+        const uniqueIds = [...new Set(historyIds)].filter(
+          (id) => id && validObjectIdRegex.test(id.toString()),
+        );
         const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
         projectsDocs.forEach((p) => {
           projectsById[p._id.toString()] = p;
@@ -405,7 +406,10 @@ async function getSalarySheet(req, res) {
           guardId: guard._id,
           year,
           month,
-          projectId: projectRefId && validObjectIdRegex.test(projectRefId.toString()) ? projectRefId : null,
+          projectId:
+            projectRefId && validObjectIdRegex.test(projectRefId.toString())
+              ? projectRefId
+              : null,
         });
 
         let carriedEdAmount = 0;
@@ -413,9 +417,15 @@ async function getSalarySheet(req, res) {
         let carriedOverrides = {};
 
         if (!record) {
+          // CHRONOLOGICAL FIX: Only look for records strictly IN THE PAST relative to the selected year & month
           const pastRecord = await SalaryRecord.findOne({
             guardId: guard._id,
+            $or: [
+              { year: { $lt: year } },
+              { year: year, month: { $lt: month } },
+            ],
           }).sort({ year: -1, month: -1 });
+
           if (pastRecord) {
             carriedEdAmount = pastRecord.edAmount || 0;
             carriedSkipPfEsic = pastRecord.skipPfEsic || false;
@@ -519,7 +529,10 @@ async function updateEditableFields(req, res) {
     overrides,
   } = req.body;
   try {
-    const validProjectId = projectId && validObjectIdRegex.test(projectId.toString()) ? projectId : null;
+    const validProjectId =
+      projectId && validObjectIdRegex.test(projectId.toString())
+        ? projectId
+        : null;
     const record = await SalaryRecord.findOneAndUpdate(
       { guardId, year, month, projectId: validProjectId },
       {
@@ -591,7 +604,9 @@ async function downloadSlip(req, res) {
         if (a.projectId) historyIds.push(a.projectId.toString());
       });
 
-      const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
+      const uniqueIds = [...new Set(historyIds)].filter(
+        (id) => id && validObjectIdRegex.test(id.toString()),
+      );
       const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
       projectsDocs.forEach((p) => {
         projectsById[p._id.toString()] = p;
@@ -604,11 +619,7 @@ async function downloadSlip(req, res) {
         month,
         attendanceDocs,
       );
-      splits = splitReportByProject(
-        fullReport,
-        year,
-        month,
-      );
+      splits = splitReportByProject(fullReport, year, month);
 
       for (const split of splits) {
         let isNarayana =
@@ -685,7 +696,10 @@ async function downloadSlip(req, res) {
         guardId,
         year,
         month,
-        projectId: projectRefIdStr && validObjectIdRegex.test(projectRefIdStr.toString()) ? projectRefIdStr : null,
+        projectId:
+          projectRefIdStr && validObjectIdRegex.test(projectRefIdStr.toString())
+            ? projectRefIdStr
+            : null,
       });
 
       let carriedEdAmount = 0;
@@ -693,10 +707,12 @@ async function downloadSlip(req, res) {
       let carriedOverrides = {};
 
       if (!record) {
-        const pastRecord = await SalaryRecord.findOne({ guardId }).sort({
-          year: -1,
-          month: -1,
-        });
+        // CHRONOLOGICAL FIX: Only look for records strictly IN THE PAST
+        const pastRecord = await SalaryRecord.findOne({
+          guardId,
+          $or: [{ year: { $lt: year } }, { year: year, month: { $lt: month } }],
+        }).sort({ year: -1, month: -1 });
+
         if (pastRecord) {
           carriedEdAmount = pastRecord.edAmount || 0;
           carriedSkipPfEsic = pastRecord.skipPfEsic || false;
@@ -1057,7 +1073,7 @@ async function downloadExcelSheet(req, res) {
   const projectId = req.query.projectId;
   const year = parseInt(req.query.year, 10);
   const month = parseInt(req.query.month, 10);
-  
+
   const workbook = new ExcelJS.Workbook();
 
   const monthNameStr = new Date(year, month).toLocaleString("en-US", {
@@ -1348,7 +1364,9 @@ async function downloadExcelSheet(req, res) {
           if (a.projectId) historyIds.push(a.projectId.toString());
         });
 
-        const uniqueIds = [...new Set(historyIds)].filter(id => id && validObjectIdRegex.test(id.toString()));
+        const uniqueIds = [...new Set(historyIds)].filter(
+          (id) => id && validObjectIdRegex.test(id.toString()),
+        );
         const projectsDocs = await Project.find({ _id: { $in: uniqueIds } });
         projectsDocs.forEach((p) => {
           projectsById[p._id.toString()] = p;
@@ -1447,7 +1465,10 @@ async function downloadExcelSheet(req, res) {
           guardId: guard._id,
           year,
           month,
-          projectId: projectRefId && validObjectIdRegex.test(projectRefId.toString()) ? projectRefId : null,
+          projectId:
+            projectRefId && validObjectIdRegex.test(projectRefId.toString())
+              ? projectRefId
+              : null,
         });
 
         let carriedEdAmount = 0;
@@ -1455,9 +1476,15 @@ async function downloadExcelSheet(req, res) {
         let carriedOverrides = {};
 
         if (!record) {
+          // CHRONOLOGICAL FIX: Only carry forward from records that happened in the PAST
           const pastRecord = await SalaryRecord.findOne({
             guardId: guard._id,
+            $or: [
+              { year: { $lt: year } },
+              { year: year, month: { $lt: month } },
+            ],
           }).sort({ year: -1, month: -1 });
+
           if (pastRecord) {
             carriedEdAmount = pastRecord.edAmount || 0;
             carriedSkipPfEsic = pastRecord.skipPfEsic || false;
@@ -1498,7 +1525,6 @@ async function downloadExcelSheet(req, res) {
           }
         }
 
-        // FIX: The calculation output is correctly saved as 'm' here so it can be pushed properly on the next line
         const m = calculateSalaryMath(
           guard,
           split.stats,
